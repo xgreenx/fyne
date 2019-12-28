@@ -21,6 +21,10 @@ type Driver interface {
 	Device() Device
 	// Start the main event loop of the driver.
 	Run()
+
+	//Run the function in main event loop
+	RunOnMain(func())
+
 	// Close the driver and open windows then exit the application.
 	Quit()
 }

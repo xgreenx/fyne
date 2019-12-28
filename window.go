@@ -1,5 +1,7 @@
 package fyne
 
+import "github.com/go-gl/glfw/v3.2/glfw"
+
 // Window describes a user interface window. Depending on the platform an app
 // may have many windows or just the one.
 type Window interface {
@@ -19,6 +21,18 @@ type Window interface {
 	// The result may not be exactly as desired due to various desktop or
 	// platform constraints.
 	Resize(Size)
+
+	// Return position of window on screen
+	Position() Position
+
+	// Return size of window
+	Size() Size
+
+	// Return mouse position
+	MousePosition() Position
+
+	// Return view port
+	Viewport() *glfw.Window
 
 	// RequestFocus attempts to raise and focus this window.
 	// This should only be called when you are sure the user would want this window

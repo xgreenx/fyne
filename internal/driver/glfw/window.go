@@ -408,6 +408,11 @@ func (w *window) SetContent(content fyne.CanvasObject) {
 	}
 
 	w.canvas.SetContent(content)
+
+	if w.canvas.Content() == nil {
+		return
+	}
+
 	w.RescaleContext()
 }
 
@@ -424,6 +429,7 @@ func (w *window) closed(viewport *glfw.Window) {
 			cache.DestroyRenderer(co)
 		}
 	})
+	w.SetContent(nil)
 
 	// trigger callbacks
 	if w.onClosed != nil {
@@ -491,6 +497,24 @@ func (w *window) findObjectAtPositionMatching(canvas *glCanvas, mouse fyne.Posit
 	}
 
 	return driver.FindObjectAtPositionMatching(mouse, matches, canvas.overlay, roots...)
+}
+
+func (w *window) Position() fyne.Position {
+	x, y := w.viewport.GetPos()
+	return fyne.Position{X: x, Y: y}
+}
+
+func (w *window) Size() fyne.Size {
+	width, height := w.viewport.GetSize()
+	return fyne.Size{Width: width, Height: height}
+}
+
+func (w *window) MousePosition() fyne.Position {
+	return w.mousePos
+}
+
+func (w *window) Viewport() *glfw.Window {
+	return w.viewport
 }
 
 func (w *window) mouseMoved(viewport *glfw.Window, xpos float64, ypos float64) {

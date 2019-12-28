@@ -59,6 +59,9 @@ func (d *gLDriver) Quit() {
 	defer func() {
 		recover() // we could be called twice - no safe way to check if d.done is closed
 	}()
+	runMutex.Lock()
+	runFlag = false
+	runMutex.Unlock()
 	close(d.done)
 }
 
