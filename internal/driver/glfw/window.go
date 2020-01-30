@@ -1134,7 +1134,9 @@ func (w *window) waitForEvents() {
 func (d *gLDriver) CreateWindow(title string) fyne.Window {
 	var ret *window
 	runOnMain(func() {
-		initOnce.Do(d.initGLFW)
+		if len(d.windows) == 0 {
+			d.initGLFW()
+		}
 
 		// make the window hidden, we will set it up and then show it later
 		glfw.WindowHint(glfw.Visible, 0)
