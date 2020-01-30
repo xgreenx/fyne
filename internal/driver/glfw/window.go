@@ -429,7 +429,6 @@ func (w *window) closed(viewport *glfw.Window) {
 			cache.DestroyRenderer(co)
 		}
 	})
-	w.SetContent(nil)
 
 	// trigger callbacks
 	if w.onClosed != nil {
