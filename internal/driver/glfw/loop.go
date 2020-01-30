@@ -116,7 +116,7 @@ func (d *gLDriver) runGL() {
 func (d *gLDriver) repaintWindow(w *window) {
 	canvas := w.canvas
 	w.RunWithContext(func() {
-		d.freeDirtyTextures(canvas)
+		freeDirtyTextures(canvas)
 
 		updateGLContext(w)
 		if canvas.ensureMinSize() {
@@ -128,7 +128,7 @@ func (d *gLDriver) repaintWindow(w *window) {
 	})
 }
 
-func (d *gLDriver) freeDirtyTextures(canvas *glCanvas) {
+func freeDirtyTextures(canvas *glCanvas) {
 	for {
 		select {
 		case object := <-canvas.refreshQueue:
