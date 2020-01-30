@@ -1154,10 +1154,13 @@ func (d *gLDriver) CreateWindow(title string) fyne.Window {
 		// This channel will be closed when the window is closed.
 		ret.eventQueue = make(chan func(), 1024)
 		go ret.runEventQueue()
+		time.Sleep(time.Second)
 
 		ret.canvas = newCanvas()
 		ret.canvas.painter = gl.NewPainter(ret.canvas, ret)
+		time.Sleep(time.Second)
 		ret.canvas.painter.Init()
+		time.Sleep(time.Second)
 		ret.canvas.context = ret
 		ret.canvas.detectedScale = ret.detectScale()
 		ret.canvas.scale = ret.calculatedScale()

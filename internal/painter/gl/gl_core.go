@@ -68,7 +68,6 @@ func (p *glPainter) imgToTexture(img image.Image) Texture {
 }
 
 func (p *glPainter) SetOutputSize(width, height int) {
-	fmt.Println("SetOutputSize ", width, height)
 	gl.Viewport(0, 0, int32(width), int32(height))
 }
 
