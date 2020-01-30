@@ -4,6 +4,7 @@ package gl
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"image"
 	"image/draw"
 	"strings"
@@ -67,6 +68,7 @@ func (p *glPainter) imgToTexture(img image.Image) Texture {
 }
 
 func (p *glPainter) SetOutputSize(width, height int) {
+	fmt.Println("SetOutputSize ", width, height)
 	gl.Viewport(0, 0, int32(width), int32(height))
 }
 
@@ -82,8 +84,7 @@ func (p *glPainter) freeTexture(obj fyne.CanvasObject) {
 func glInit() {
 	err := gl.Init()
 	if err != nil {
-		fyne.LogError("failed to initialise OpenGL", err)
-		return
+		panic(errors.Errorf("failed to initialise OpenGL", err))
 	}
 
 	gl.Disable(gl.DEPTH_TEST)
