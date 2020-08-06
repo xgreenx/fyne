@@ -43,6 +43,10 @@ func running() bool {
 	return runFlag
 }
 
+func RunOnMain(f func()) {
+	runOnMain(f)
+}
+
 // force a function f to run on the main thread
 func runOnMain(f func()) {
 	// If we are on main just execute - otherwise add it to the main queue and wait.
@@ -222,7 +226,7 @@ func (d *gLDriver) tryPollEvents() {
 	glfw.PollEvents() // This call blocks while window is being resized, which prevents freeDirtyTextures from being called
 }
 
-func(d *gLDriver) freeDirtyTextures(canvas *glCanvas) {
+func (d *gLDriver) freeDirtyTextures(canvas *glCanvas) {
 	for {
 		select {
 		case object := <-canvas.refreshQueue:
