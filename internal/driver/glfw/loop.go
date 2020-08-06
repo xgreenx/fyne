@@ -43,10 +43,6 @@ func running() bool {
 	return runFlag
 }
 
-func RunOnMain(f func()) {
-	runOnMain(f)
-}
-
 // force a function f to run on the main thread
 func runOnMain(f func()) {
 	// If we are on main just execute - otherwise add it to the main queue and wait.

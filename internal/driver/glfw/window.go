@@ -563,6 +563,10 @@ func (w *window) Viewport() *glfw.Window {
 	return w.viewport
 }
 
+func (w *window) RunOnMain(f func()) {
+	runOnMain(f)
+}
+
 func (w *window) mouseMoved(viewport *glfw.Window, xpos float64, ypos float64) {
 	w.mousePos = fyne.NewPos(internal.UnscaleInt(w.canvas, int(xpos)), internal.UnscaleInt(w.canvas, int(ypos)))
 
