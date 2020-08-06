@@ -563,10 +563,6 @@ func (w *window) Viewport() *glfw.Window {
 	return w.viewport
 }
 
-func (w *window) RunOnMain(f func()) {
-	runOnMain(f)
-}
-
 func (w *window) mouseMoved(viewport *glfw.Window, xpos float64, ypos float64) {
 	w.mousePos = fyne.NewPos(internal.UnscaleInt(w.canvas, int(xpos)), internal.UnscaleInt(w.canvas, int(ypos)))
 
@@ -1106,6 +1102,10 @@ func (w *window) queueEvent(fn func()) {
 	default:
 		fyne.LogError("EventQueue full, perhaps a callback blocked the event handler", nil)
 	}
+}
+
+func (w *window) RunOnMainWhenCreated(fn func()) {
+	w.runOnMainWhenCreated(fn)
 }
 
 func (w *window) runOnMainWhenCreated(fn func()) {

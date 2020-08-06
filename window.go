@@ -34,7 +34,7 @@ type Window interface {
 	// Return view port
 	Viewport() *glfw.Window
 
-	RunOnMain(func())
+	RunOnMainWhenCreated(func())
 
 	// RequestFocus attempts to raise and focus this window.
 	// This should only be called when you are sure the user would want this window
