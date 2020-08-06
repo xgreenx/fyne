@@ -7,16 +7,21 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
+	"fyne.io/fyne"
 	"fyne.io/fyne/cmd/fyne/internal/mobile"
 	ico "github.com/Kodeworks/golang-image-ico"
 	"github.com/jackmordaunt/icns"
 	"github.com/josephspurrier/goversioninfo"
 	"github.com/pkg/errors"
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
 func exists(path string) bool {
@@ -30,7 +35,10 @@ func exists(path string) bool {
 func ensureSubDir(parent, name string) string {
 	path := filepath.Join(parent, name)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		os.Mkdir(path, os.ModePerm)
+		err := os.Mkdir(path, os.ModePerm)
+		if err != nil {
+			fyne.LogError("Failed to create dirrectory", err)
+		}
 	}
 	return path
 }
@@ -49,7 +57,7 @@ func copyFileMode(src, tgt string, perm os.FileMode) error {
 		return err
 	}
 
-	source, err := os.Open(src)
+	source, err := os.Open(filepath.Clean(src))
 	if err != nil {
 		return err
 	}
@@ -81,34 +89,78 @@ var _ command = (*packager)(nil)
 type packager struct {
 	name, srcDir, dir, exe, icon string
 	os, appID                    string
-	install                      bool
+	install, release             bool
 }
 
 func (p *packager) packageLinux() error {
-	prefixDir := ensureSubDir(ensureSubDir(p.dir, "usr"), "local")
+	var prefixDir string
+	local := "local/"
+	tempDir := "tmp-pkg"
+
+	if p.install {
+		tempDir = ""
+	}
+
+	if _, err := os.Stat(filepath.Join("/", "usr", "local")); os.IsNotExist(err) {
+		prefixDir = ensureSubDir(ensureSubDir(p.dir, tempDir), "usr")
+		local = ""
+	} else {
+		prefixDir = ensureSubDir(ensureSubDir(ensureSubDir(p.dir, tempDir), "usr"), "local")
+	}
+
 	shareDir := ensureSubDir(prefixDir, "share")
+
+	binDir := ensureSubDir(prefixDir, "bin")
+	binName := filepath.Join(binDir, filepath.Base(p.exe))
+	err := copyExeFile(p.exe, binName)
+	if err != nil {
+		return errors.Wrap(err, "Failed to copy application binary file")
+	}
+
+	iconDir := ensureSubDir(shareDir, "pixmaps")
+	iconPath := filepath.Join(iconDir, p.name+filepath.Ext(p.icon))
+	err = copyFile(p.icon, iconPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to copy icon")
+	}
 
 	appsDir := ensureSubDir(shareDir, "applications")
 	desktop := filepath.Join(appsDir, p.name+".desktop")
 	deskFile, _ := os.Create(desktop)
-	io.WriteString(deskFile, "[Desktop Entry]\n"+
+	_, err = io.WriteString(deskFile, "[Desktop Entry]\n"+
 		"Type=Application\n"+
 		"Name="+p.name+"\n"+
 		"Exec="+filepath.Base(p.exe)+"\n"+
 		"Icon="+p.name+"\n")
-
-	binDir := ensureSubDir(prefixDir, "bin")
-	binName := filepath.Join(binDir, filepath.Base(p.exe))
-	copyExeFile(p.exe, binName)
-
-	iconThemeDir := ensureSubDir(ensureSubDir(shareDir, "icons"), "hicolor")
-	iconDir := ensureSubDir(ensureSubDir(iconThemeDir, "512x512"), "apps")
-	iconPath := filepath.Join(iconDir, p.name+filepath.Ext(p.icon))
-	copyFile(p.icon, iconPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to write desktop entry string")
+	}
 
 	if !p.install {
-		tarCmd := exec.Command("tar", "zcf", p.name+".tar.gz", "usr")
-		tarCmd.Run()
+		defer os.RemoveAll(filepath.Join(p.dir, tempDir))
+
+		makefile, _ := os.Create(filepath.Join(p.dir, tempDir, "Makefile"))
+		_, err := io.WriteString(makefile, `ifneq ("$(wildcard /usr/local)","")`+"\n"+
+			"PREFIX ?= /usr/local\n"+
+			"else\n"+
+			"PREFIX ?= /usr\n"+
+			"endif\n"+
+			"\n"+
+			"default:\n"+
+			`	# Run "sudo make install" to install the application.`+"\n"+
+			"install:\n"+
+			"	install -Dm00644 usr/"+local+"share/applications/"+p.name+`.desktop $(DESTDIR)$(PREFIX)/share/applications/`+p.name+".desktop\n"+
+			"	install -Dm00755 usr/"+local+"bin/"+filepath.Base(p.exe)+` $(DESTDIR)$(PREFIX)/bin/`+filepath.Base(p.exe)+"\n"+
+			"	install -Dm00644 usr/"+local+"share/pixmaps/"+p.name+filepath.Ext(p.icon)+` $(DESTDIR)$(PREFIX)/share/pixmaps/`+p.name+filepath.Ext(p.icon)+"\n")
+		if err != nil {
+			return errors.Wrap(err, "Failed to write Makefile string")
+		}
+
+		tarCmd := exec.Command("tar", "zcf", p.name+".tar.gz", "-C", tempDir, "usr", "Makefile")
+		err = tarCmd.Run()
+		if err != nil {
+			return errors.Wrap(err, "Failed to create archive with tar")
+		}
 	}
 
 	return nil
@@ -121,7 +173,7 @@ func (p *packager) packageDarwin() error {
 	contentsDir := ensureSubDir(appDir, "Contents")
 	info := filepath.Join(contentsDir, "Info.plist")
 	infoFile, _ := os.Create(info)
-	io.WriteString(infoFile, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+	_, err := io.WriteString(infoFile, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
 		"<!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"+
 		"<plist version=\"1.0\">\n"+
 		"<dict>\n"+
@@ -143,10 +195,16 @@ func (p *packager) packageDarwin() error {
 		"<string>APPL</string>\n"+
 		"</dict>\n"+
 		"</plist>\n")
+	if err != nil {
+		return errors.Wrap(err, "Failed to write infoFile string")
+	}
 
 	macOSDir := ensureSubDir(contentsDir, "MacOS")
 	binName := filepath.Join(macOSDir, exeName)
-	copyExeFile(p.exe, binName)
+	err = copyExeFile(p.exe, binName)
+	if err != nil {
+		return errors.Wrap(err, "Failed to copy exe file")
+	}
 
 	resDir := ensureSubDir(contentsDir, "Resources")
 	icnsPath := filepath.Join(resDir, "icon.icns")
@@ -191,8 +249,16 @@ func (p *packager) packageWindows() error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to open image file")
 	}
-	ico.Encode(file, srcImg)
-	file.Close()
+
+	err = ico.Encode(file, srcImg)
+	if err != nil {
+		return errors.Wrap(err, "Failed to encode icon")
+	}
+
+	err = file.Close()
+	if err != nil {
+		return errors.Wrap(err, "Failed to close image file")
+	}
 
 	// write manifest
 	manifest := p.exe + ".manifest"
@@ -200,10 +266,13 @@ func (p *packager) packageWindows() error {
 	if _, err := os.Stat(manifest); os.IsNotExist(err) {
 		manifestGenerated = true
 		manifestFile, _ := os.Create(manifest)
-		io.WriteString(manifestFile, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"+
+		_, err := io.WriteString(manifestFile, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"+
 			"<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\" xmlns:asmv3=\"urn:schemas-microsoft-com:asm.v3\">\n"+
 			"<assemblyIdentity version=\"1.0.0.0\" processorArchitecture=\"*\" name=\""+p.name+"\" type=\"win32\"/>\n"+
 			"</assembly>")
+		if err != nil {
+			return errors.Wrap(err, "Failed to write manifest string")
+		}
 	}
 
 	// launch rsrc to generate the object file
@@ -216,11 +285,19 @@ func (p *packager) packageWindows() error {
 
 	vi.Build()
 	vi.Walk()
-	vi.WriteSyso(outPath, runtime.GOARCH)
+	err = vi.WriteSyso(outPath, runtime.GOARCH)
+	if err != nil {
+		return errors.Wrap(err, "Failed to write .syso file")
+	}
 
-	os.Remove(icoPath)
-	if manifestGenerated {
-		os.Remove(manifest)
+	err = os.Remove(icoPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to remove icon")
+	} else if manifestGenerated {
+		err := os.Remove(manifest)
+		if err != nil {
+			return errors.Wrap(err, "Failed to remove manifest")
+		}
 	}
 
 	err = p.buildPackage()
@@ -229,17 +306,20 @@ func (p *packager) packageWindows() error {
 	}
 
 	if p.install {
-		runAsAdminWindows("copy", "\"\""+p.exe+"\"\"", "\"\""+filepath.Join(os.Getenv("ProgramFiles"), p.name)+"\"\"")
+		err := runAsAdminWindows("copy", "\"\""+p.exe+"\"\"", "\"\""+filepath.Join(os.Getenv("ProgramFiles"), p.name)+"\"\"")
+		if err != nil {
+			return errors.Wrap(err, "Failed to run as administrator")
+		}
 	}
 	return nil
 }
 
-func (p *packager) packageAndroid() error {
-	return mobile.RunNewBuild("android", p.appID, p.icon)
+func (p *packager) packageAndroid(arch string) error {
+	return mobile.RunNewBuild(arch, p.appID, p.icon, p.name, p.release)
 }
 
 func (p *packager) packageIOS() error {
-	err := mobile.RunNewBuild("ios", p.appID, p.icon)
+	err := mobile.RunNewBuild("ios", p.appID, p.icon, p.name, p.release)
 	if err != nil {
 		return err
 	}
@@ -250,12 +330,13 @@ func (p *packager) packageIOS() error {
 }
 
 func (p *packager) addFlags() {
-	flag.StringVar(&p.os, "os", "", "The operating system to target (android, darwin, ios, linux, windows)")
+	flag.StringVar(&p.os, "os", "", "The operating system to target (android, android/arm, android/arm64, android/amd64, android/386, darwin, ios, linux, windows)")
 	flag.StringVar(&p.exe, "executable", "", "The path to the executable, default is the current dir main binary")
 	flag.StringVar(&p.srcDir, "sourceDir", "", "The directory to package, if executable is not set")
 	flag.StringVar(&p.name, "name", "", "The name of the application, default is the executable file name")
 	flag.StringVar(&p.icon, "icon", "Icon.png", "The name of the application icon file")
 	flag.StringVar(&p.appID, "appID", "", "For ios or darwin targets an appID is required, for ios this must \nmatch a valid provisioning profile")
+	flag.BoolVar(&p.release, "release", false, "Should this package be prepared for release? (disable debug etc)")
 }
 
 func (*packager) printHelp(indent string) {
@@ -300,14 +381,17 @@ func (p *packager) validate() error {
 	}
 	if p.srcDir == "" {
 		p.srcDir = baseDir
+	} else if p.os == "ios" || p.os == "android" {
+		return errors.New("Parameter -sourceDir is currently not supported for mobile builds.\n" +
+			"Change directory to the main package and try again.")
 	}
 
-	exeName := filepath.Base(p.srcDir)
-	if p.os == "windows" {
-		exeName = exeName + ".exe"
-	}
+	exeName := calculateExeName(p.srcDir, p.os)
+
 	if p.exe == "" {
 		p.exe = filepath.Join(p.srcDir, exeName)
+	} else if p.os == "ios" || p.os == "android" {
+		_, _ = fmt.Fprint(os.Stderr, "Parameter -executable is ignored for mobile builds.\n")
 	}
 
 	if p.name == "" {
@@ -324,22 +408,44 @@ func (p *packager) validate() error {
 	if p.appID == "" {
 		if p.os == "darwin" {
 			p.appID = "com.example." + p.name
-		} else if p.os == "ios" {
-			return errors.New("Missing appID parameter for ios package")
+		} else if p.os == "ios" || p.os == "android" {
+			return errors.New("Missing appID parameter for mobile package")
 		}
 	}
 
 	return nil
 }
 
+func calculateExeName(sourceDir, os string) string {
+	exeName := filepath.Base(sourceDir)
+	/* #nosec */
+	if data, err := ioutil.ReadFile(filepath.Join(sourceDir, "go.mod")); err == nil {
+		modulePath := modfile.ModulePath(data)
+		moduleName, _, ok := module.SplitPathVersion(modulePath)
+		if ok {
+			paths := strings.Split(moduleName, "/")
+			name := paths[len(paths)-1]
+			if name != "" {
+				exeName = name
+			}
+		}
+	}
+
+	if os == "windows" {
+		exeName = exeName + ".exe"
+	}
+
+	return exeName
+}
+
 func (p *packager) doPackage() error {
-	if !exists(p.exe) {
+	if !exists(p.exe) && !p.isMobile() {
 		err := p.buildPackage()
 		if err != nil {
 			return errors.Wrap(err, "Error building application")
 		}
 		if !exists(p.exe) {
-			return fmt.Errorf("Unable to build directory to expected executable, %s" + p.exe)
+			return fmt.Errorf("unable to build directory to expected executable, %s", p.exe)
 		}
 	}
 
@@ -350,11 +456,15 @@ func (p *packager) doPackage() error {
 		return p.packageLinux()
 	case "windows":
 		return p.packageWindows()
-	case "android":
-		return p.packageAndroid()
+	case "android/arm", "android/arm64", "android/amd64", "android/386", "android":
+		return p.packageAndroid(p.os)
 	case "ios":
 		return p.packageIOS()
 	default:
-		return errors.New("Unsupported terget operating system \"" + p.os + "\"")
+		return fmt.Errorf("unsupported target operating system \"%s\"", p.os)
 	}
+}
+
+func (p *packager) isMobile() bool {
+	return p.os == "ios" || strings.HasPrefix(p.os, "android")
 }

@@ -25,7 +25,12 @@ func bundleFile(name string, filepath string, f *os.File) {
 }
 
 func openFile(filename string) *os.File {
-	os.Remove(filename)
+	err := os.Remove(filename)
+	if err != nil {
+		fyne.LogError("Unable to remove file "+filename, err)
+		return nil
+	}
+
 	_, dirname, _, _ := runtime.Caller(0)
 	f, err := os.Create(path.Join(path.Dir(dirname), filename))
 	if err != nil {
@@ -33,7 +38,7 @@ func openFile(filename string) *os.File {
 		return nil
 	}
 
-	_, err = f.WriteString("// **** THIS FILE IS AUTO-GENERATED, PLEASE DO NOT EDIT IT **** //\n\npackage main\n\nimport \"fyne.io/fyne\"\n\n")
+	_, err = f.WriteString("// **** THIS FILE IS AUTO-GENERATED, PLEASE DO NOT EDIT IT **** //\n\npackage settings\n\nimport \"fyne.io/fyne\"\n\n")
 	if err != nil {
 		fyne.LogError("Unable to write file "+filename, err)
 		return nil

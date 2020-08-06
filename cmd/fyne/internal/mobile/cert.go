@@ -29,6 +29,7 @@ func signPKCS7(rand io.Reader, priv *rsa.PrivateKey, msg []byte) ([]byte, error)
 		SerialNumber:       big.NewInt(serialNumber),
 		SignatureAlgorithm: x509.SHA1WithRSA,
 		Subject:            name,
+		NotAfter:           time.Date(2120, time.January, 1, 12, 0, 0, 0, time.UTC), // more than 50 years for Google Play Store
 	}
 
 	b, err := x509.CreateCertificate(rand, template, template, priv.Public(), priv)
@@ -42,7 +43,10 @@ func signPKCS7(rand io.Reader, priv *rsa.PrivateKey, msg []byte) ([]byte, error)
 	}
 
 	h := sha1.New()
-	h.Write(msg)
+	_, err = h.Write(msg)
+	if err != nil {
+		return nil, err
+	}
 	hashed := h.Sum(nil)
 
 	signed, err := rsa.SignPKCS1v15(rand, priv, crypto.SHA1, hashed)

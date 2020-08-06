@@ -26,7 +26,7 @@ func mkdir(dir string) error {
 	if buildN {
 		return nil
 	}
-	return os.MkdirAll(dir, 0755)
+	return os.MkdirAll(dir, 0750)
 }
 
 func removeAll(path string) error {
@@ -40,7 +40,10 @@ func removeAll(path string) error {
 	// os.RemoveAll behaves differently in windows.
 	// http://golang.org/issues/9606
 	if goos == "windows" {
-		resetReadOnlyFlagAll(path)
+		err := resetReadOnlyFlagAll(path)
+		if err != nil {
+			return err
+		}
 	}
 
 	return os.RemoveAll(path)
@@ -52,9 +55,9 @@ func resetReadOnlyFlagAll(path string) error {
 		return err
 	}
 	if !fi.IsDir() {
-		return os.Chmod(path, 0666)
+		return os.Chmod(path, 0600)
 	}
-	fd, err := os.Open(path)
+	fd, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return err
 	}
@@ -62,7 +65,10 @@ func resetReadOnlyFlagAll(path string) error {
 
 	names, _ := fd.Readdirnames(-1)
 	for _, name := range names {
-		resetReadOnlyFlagAll(path + string(filepath.Separator) + name)
+		err := resetReadOnlyFlagAll(path + string(filepath.Separator) + name)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -71,7 +77,7 @@ func goEnv(name string) string {
 	if val := os.Getenv(name); val != "" {
 		return val
 	}
-	val, err := exec.Command(goBin(), "env", name).Output()
+	val, err := exec.Command("go", "env", name).Output()
 	if err != nil {
 		panic(err) // the Go tool was tested to work earlier
 	}
@@ -88,12 +94,7 @@ func runCmd(cmd *exec.Cmd) error {
 		if env != "" {
 			env += " "
 		}
-		args := make([]string, len(cmd.Args))
-		copy(args, cmd.Args)
-		if args[0] == goBin() {
-			args[0] = "go"
-		}
-		printcmd("%s%s%s", dir, env, strings.Join(args, " "))
+		printcmd("%s%s%s", dir, env, strings.Join(cmd.Args, " "))
 	}
 
 	buf := new(bytes.Buffer)

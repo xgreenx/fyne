@@ -10,9 +10,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"golang.org/x/tools/go/packages"
 )
 
-// ctx, pkg, tmpdir in build.go
+// pkg, tmpdir in build.go
 
 func copyFile(dst, src string) error {
 	if buildX {
@@ -22,7 +25,7 @@ func copyFile(dst, src string) error {
 		if buildN {
 			return nil
 		}
-		f, err := os.Open(src)
+		f, err := os.Open(filepath.Clean(src))
 		if err != nil {
 			return err
 		}
@@ -60,4 +63,23 @@ func writeFile(filename string, generate func(io.Writer) error) error {
 	}()
 
 	return generate(f)
+}
+
+func packagesConfig(targetOS string) *packages.Config {
+	config := &packages.Config{}
+	// Add CGO_ENABLED=1 explicitly since Cgo is disabled when GOOS is different from host OS.
+	config.Env = append(os.Environ(), "GOARCH=arm", "GOOS="+targetOS, "CGO_ENABLED=1")
+	if targetOS == "android" {
+		// with Cgo enabled we need to ensure the C compiler is set via CC to
+		// avoid the error: "gcc: error: unrecognized command line option '-marm'"
+		config.Env = append(os.Environ(), androidEnv["arm"]...)
+	}
+	tags := buildTags
+	if targetOS == "darwin" {
+		tags = append(tags, "ios")
+	}
+	if len(tags) > 0 {
+		config.BuildFlags = []string{"-tags=" + strings.Join(tags, ",")}
+	}
+	return config
 }

@@ -1,15 +1,20 @@
 package gomobile
 
 import (
-	"golang.org/x/mobile/event/size"
+	"fyne.io/fyne/driver/mobile"
+	"github.com/fyne-io/mobile/event/size"
 
 	"fyne.io/fyne"
 )
 
 type device struct {
+	insetTop, insetBottom, insetLeft, insetRight int
 }
 
-var currentOrientation size.Orientation
+var (
+	currentOrientation size.Orientation
+	currentDPI         float32
+)
 
 // Declare conformity with Device
 var _ fyne.Device = (*device)(nil)
@@ -31,8 +36,16 @@ func (*device) HasKeyboard() bool {
 	return false
 }
 
+func (d *device) SystemScale() float32 {
+	return d.SystemScaleForWindow(nil)
+}
+
 func (*device) ShowVirtualKeyboard() {
-	showVirtualKeyboard()
+	showVirtualKeyboard(mobile.DefaultKeyboard)
+}
+
+func (*device) ShowVirtualKeyboardType(keyboard mobile.KeyboardType) {
+	showVirtualKeyboard(keyboard)
 }
 
 func (*device) HideVirtualKeyboard() {

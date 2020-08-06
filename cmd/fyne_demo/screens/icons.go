@@ -110,6 +110,12 @@ var icons = []struct {
 	{"DocumentPrintIcon", theme.DocumentPrintIcon()},
 	{"DocumentSaveIcon", theme.DocumentSaveIcon()},
 
+	{"FileIcon", theme.FileIcon()},
+	{"FileApplicationIcon", theme.FileApplicationIcon()},
+	{"FileAudioIcon", theme.FileAudioIcon()},
+	{"FileImageIcon", theme.FileImageIcon()},
+	{"FileTextIcon", theme.FileTextIcon()},
+	{"FileVideoIcon", theme.FileVideoIcon()},
 	{"FolderIcon", theme.FolderIcon()},
 	{"FolderNewIcon", theme.FolderNewIcon()},
 	{"FolderOpenIcon", theme.FolderOpenIcon()},
@@ -141,4 +147,17 @@ var icons = []struct {
 	{"MailReplyIcon", theme.MailReplyIcon()},
 	{"MailReplyAllIcon", theme.MailReplyAllIcon()},
 	{"MailSendIcon", theme.MailSendIcon()},
+
+	{"MediaFastForward", theme.MediaFastForwardIcon()},
+	{"MediaFastRewind", theme.MediaFastRewindIcon()},
+	{"MediaPause", theme.MediaPauseIcon()},
+	{"MediaPlay", theme.MediaPlayIcon()},
+	{"MediaRecord", theme.MediaRecordIcon()},
+	{"MediaReplay", theme.MediaReplayIcon()},
+	{"MediaSkipNext", theme.MediaSkipNextIcon()},
+	{"MediaSkipPrevious", theme.MediaSkipPreviousIcon()},
+
+	{"VolumeDown", theme.VolumeDownIcon()},
+	{"VolumeMute", theme.VolumeMuteIcon()},
+	{"VolumeUp", theme.VolumeUpIcon()},
 }
